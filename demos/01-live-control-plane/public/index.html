@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <title>Urano Guard — control plane</title>
+  <style>
+    :root { --bg:#0c1117; --panel:#141c27; --line:#243044; --ok:#3dffa6; --bad:#ff5d6c; --mute:#8aa0b8; --text:#e8eef6; }
+    * { box-sizing: border-box; }
+    body { margin:0; font: 14px/1.45 "Segoe UI", system-ui, sans-serif; background: radial-gradient(1200px 500px at 10% -10%, #1a2a44, var(--bg)); color: var(--text); }
+    header { padding: 20px 28px; border-bottom: 1px solid var(--line); display:flex; justify-content:space-between; align-items:baseline; }
+    h1 { font-size: 18px; letter-spacing: .08em; text-transform: uppercase; margin:0; }
+    header span { color: var(--mute); font-size: 12px; }
+    main { display:grid; grid-template-columns: 1.2fr .8fr; gap: 16px; padding: 20px 28px; }
+    section { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 16px; min-height: 280px; }
+    h2 { margin: 0 0 12px; font-size: 13px; color: var(--mute); letter-spacing: .12em; text-transform: uppercase; }
+    button { background:#1e3a5f; color:var(--text); border:1px solid #35598a; padding:8px 12px; border-radius:6px; cursor:pointer; margin:0 8px 8px 0; }
+    button:hover { background:#274a78; }
+    pre, .log { font-family: ui-monospace, Consolas, monospace; font-size: 12px; white-space: pre-wrap; color:#c5d4e8; }
+    .ok { color: var(--ok); } .bad { color: var(--bad); }
+    .kv { display:flex; justify-content:space-between; padding:6px 0; border-bottom:1px solid var(--line); }
+    #timeline { max-height: 420px; overflow:auto; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Control plane</h1>
+    <span id="agentHint">conectando…</span>
+  </header>
+  <main>
+    <section>
+      <h2>Tráfico</h2>
+      <div>
+        <button data-kind="benign">Benigno</button>
+        <button data-kind="jailbreak">Jailbreak</button>
+        <button data-kind="sqli">SQLi</button>
+        <button data-kind="padding">Padding</button>
+      </div>
+      <div id="timeline"></div>
+    </section>
+    <section>
+      <h2>Estado del servidor</h2>
+      <div id="state"></div>
+    </section>
+  </main>
+  <script>
+    const stateEl = document.getElementById('state');
+    const timeline = document.getElementById('timeline');
+    const hint = document.getElementById('agentHint');
+    function renderState(s) {
+      stateEl.innerHTML = `
+        <div class="kv"><span>API key</span><strong>…${s.apiKeySuffix || ''}</strong></div>
+        <div class="kv"><span>Honeypot</span><strong>${s.honeypotArmed ? 'armado' : 'off'}</strong></div>
+        <div class="kv"><span>IPs bloqueadas</span><strong>${(s.blocked||[]).join(', ') || '—'}</strong></div>
+        <h2 style="margin-top:16px">Logs</h2>
+        <div class="log">${(s.logs||[]).join('\n') || '—'}</div>`;
+    }
+    function line(cls, text) {
+      const d = document.createElement('div');
+      d.className = cls;
+      d.textContent = new Date().toLocaleTimeString() + '  ' + text;
+      timeline.prepend(d);
+    }
+    const es = new EventSource('/events');
+    es.addEventListener('hello', e => {
+      const d = JSON.parse(e.data);
+      hint.textContent = d.usingStub ? 'stub local (sin Desktop)' : ('agente ' + d.agentUrl);
+    });
+    es.addEventListener('state', e => renderState(JSON.parse(e.data)));
+    es.addEventListener('requestBlocked', e => {
+      const d = JSON.parse(e.data);
+      line('bad', 'BLOCK score=' + d.riskScore + ' ' + (d.reason || d.source || ''));
+    });
+    es.addEventListener('requestAllowed', e => {
+      const d = JSON.parse(e.data);
+      line('ok', 'ALLOW score=' + d.riskScore + (d.analysis ? ' — ' + d.analysis.slice(0,80) : ''));
+    });
+    es.addEventListener('serverMutated', e => line('', 'skill ' + JSON.stringify(JSON.parse(e.data))));
+    document.querySelectorAll('button[data-kind]').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const payloads = await fetch('/payloads').then(r => r.json());
+        const kind = btn.getAttribute('data-kind');
+        const res = await fetch('/api/ingest', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payloads[kind])
+        });
+        const json = await res.json().catch(() => ({}));
+        line(res.ok ? 'ok' : 'bad', res.status + ' ' + JSON.stringify(json).slice(0, 180));
+      });
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,15 @@
+{
+  "name": "@urano/guard-demo-shared",
+  "version": "1.0.0",
+  "private": true,
+  "type": "commonjs",
+  "main": "index.ts",
+  "dependencies": {
+    "@uranotools/urano-guard": "file:../../urano-guard",
+    "express": "^4.21.2"
+  },
+  "devDependencies": {
+    "@types/express": "^4.17.21",
+    "@types/node": "^20.11.0"
+  }
+}

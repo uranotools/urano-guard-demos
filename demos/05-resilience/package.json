@@ -1,0 +1,16 @@
+{
+  "name": "@urano/demo-05-resilience",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": { "start": "tsx server.ts" },
+  "dependencies": {
+    "@urano/guard-demo-shared": "*",
+    "@uranotools/urano-guard": "file:../../../urano-guard",
+    "express": "^4.21.2"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.2",
+    "@types/express": "^4.17.21",
+    "@types/node": "^20.11.0"
+  }
+}

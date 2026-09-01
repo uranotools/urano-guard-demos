@@ -1,0 +1,35 @@
+{
+  "name": "urano-guard-demos",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Example infrastructures that point Urano Guard remoteAgent.url at the Urano Desktop cyber-gateway webhook.",
+  "workspaces": [
+    "packages/shared",
+    "demos/00-min-contract",
+    "demos/01-live-control-plane",
+    "demos/02-need-body",
+    "demos/03-payments-webhook",
+    "demos/04-nginx-stack",
+    "demos/05-resilience",
+    "demos/06-soc-console"
+  ],
+  "scripts": {
+    "start": "npm run start:stack",
+    "start:stack": "npm run build -w @urano/demo-06-soc-console && concurrently -k -n 00,01,02,03,04,05,06 \"cross-env PORT=3006 npm run start -w @urano/demo-00-min-contract\" \"npm run start:01\" \"npm run start:02\" \"npm run start:03\" \"npm run start:04\" \"npm run start:05\" \"npm run start:api -w @urano/demo-06-soc-console\"",
+    "start:00": "npm run start -w @urano/demo-00-min-contract",
+    "start:01": "npm run start -w @urano/demo-01-control-plane",
+    "start:02": "npm run start -w @urano/demo-02-need-body",
+    "start:03": "npm run start -w @urano/demo-03-payments",
+    "start:04": "npm run start -w @urano/demo-04-nginx",
+    "start:05": "npm run start -w @urano/demo-05-resilience",
+    "start:06": "npm run start -w @urano/demo-06-soc-console",
+    "dev:06": "npm run dev -w @urano/demo-06-soc-console"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2",
+    "cross-env": "^7.0.3"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
