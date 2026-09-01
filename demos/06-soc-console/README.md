@@ -36,4 +36,4 @@ Abre http://127.0.0.1:5173 (dev) o http://127.0.0.1:3010 (start).
 
 Cómo aportar una demo nueva: ver [AGENTS.md](../../AGENTS.md) en la raíz del monorepo.
 
-Desktop: descárgalo en [uranoai.com/workspace](https://uranoai.com/workspace), instala **cyber-gateway**, conecta tu LLM, crea un agente con el plugin + proveedor/modelo y lánzalo (`TARGET_AGENT` en el Vault). Paso a paso: [README raíz — Arranque](../../README.md#arranque). Timeout típico de un hop LLM: ~20s (tope 35s).
+Desktop es **opcional**. Camino Urano: [uranoai.com/workspace](https://uranoai.com/workspace) → plugin **cyber-gateway** → LLM → agente (`TARGET_AGENT`). O apunta `AGENT_URL` a **tu** webhook schema 1.0: [CUSTOM_AGENT.md](https://github.com/uranotools/urano-guard/blob/main/CUSTOM_AGENT.md). Paso a paso: [README raíz](../../README.md#arranque). Timeout típico de un hop LLM: ~20s (tope 35s).
