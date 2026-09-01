@@ -19,7 +19,7 @@
 </p>
 
 <p align="center">
-  <a href="#arranque-en-3-comandos">Arranque</a>
+  <a href="#arranque">Arranque</a>
   ·
   <a href="#cómo-encaja">Arquitectura</a>
   ·
@@ -60,9 +60,22 @@ http://127.0.0.1:6274/v1/webhook/mcp_cyber-gateway/default
 
 ---
 
-## Arranque en 3 comandos
+## Arranque
 
-Hace falta Node **≥ 18**, el SDK compilado y Desktop en `:6274` (cyber-gateway + `TARGET_AGENT` en el Vault).
+Hace falta Node **≥ 18**. El hop con LLM **no** está en este repo: vive en **Urano Desktop** (`:6274`).
+
+```mermaid
+flowchart LR
+  Stack["1. npm start"]
+  Desk["2. Urano Desktop"]
+  Plug["3. Plugin cyber-gateway"]
+  Llm["4. LLM preferido"]
+  Agente["5. Crear y lanzar agente"]
+
+  Stack --> Desk --> Plug --> Llm --> Agente
+```
+
+### 1. Levantar el stack
 
 ```bash
 cd ../urano-guard && npm install && npm run build
@@ -79,7 +92,42 @@ Abre **http://127.0.0.1:3010** — Overview, Ataques, Live, SOC chat, Reportes, 
 | `npm run dev:06` | Vite `:5173` + API `:3010` |
 | `set AGENT_URL=stub` | Sin Desktop: stub de reglas, no LLM |
 
-Si el Vault tiene `INCOMING_WEBHOOK_SECRET`, copia [`.env.example`](.env.example) (`AGENT_TOKEN` / `AGENT_HMAC`).
+Las labs ya responden. El hop remoto (análisis, `NEED`, reportes) espera el agente de abajo.
+
+### 2. Descargar Urano Desktop
+
+1. Entra a **[uranoai.com/workspace](https://uranoai.com/workspace)** e instala **Urano Desktop**.
+2. Ábrelo. El webhook local queda en `:6274`.
+
+### 3. Instalar el plugin `cyber-gateway`
+
+En Desktop: **MCP Manager**.
+
+- Empaquetado / marketplace: instala **cyber-gateway**.
+- Si clonaste los plugins: **Desarrollador → Vincular carpeta local** y elige `UranoDesktop-plugins/cyber-gateway` (el directorio con `config.ts`).
+
+El canal canónico de las demos (sin fila en Canales) es:
+
+```
+http://127.0.0.1:6274/v1/webhook/mcp_cyber-gateway/default
+```
+
+### 4. Conectar tu LLM
+
+En Desktop, **Ajustes / proveedores**: elige el proveedor (OpenAI, Anthropic, Azure, Ollama, …) y guarda la API key en el **Vault**. Este repo **no** lleva claves.
+
+### 5. Crear el agente y lanzarlo
+
+1. **Nuevo agente**.
+2. Activa el módulo **cyber-gateway** (así entran las skills MCP y el `SKILL.md` del plugin: veredicto JSON schema 1.0).
+3. Revisa o pega las instrucciones SOC (el plugin ya pide `ALLOW` / `BLOCK` / `NEED` + `analysis` / `report`).
+4. En el agente, configura el **proveedor y el modelo** que acabas de conectar.
+5. **Lánzalo** (tiene que quedar en marcha; si está apagado el webhook no tiene a quién hablar).
+6. En el Vault de **cyber-gateway**, `TARGET_AGENT`: ese agente (o Enrutador). Vacío = Hybrid Router.
+
+Si el Vault tiene `INCOMING_WEBHOOK_SECRET`, copia [`.env.example`](.env.example) (`AGENT_TOKEN` / `AGENT_HMAC`) en las demos.
+
+**EN:** After `npm start`, install [Urano Desktop](https://uranoai.com/workspace), add the `cyber-gateway` plugin, connect your LLM in the Vault, create an agent with that plugin + provider/model, launch it, and set `TARGET_AGENT`.
 
 ---
 

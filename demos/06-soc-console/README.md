@@ -36,4 +36,4 @@ Abre http://127.0.0.1:5173 (dev) o http://127.0.0.1:3010 (start).
 
 Cómo aportar una demo nueva: ver [AGENTS.md](../../AGENTS.md) en la raíz del monorepo.
 
-Desktop debe estar en `:6274` con cyber-gateway. Timeout típico de un hop LLM: ~20s (tope 35s).
+Desktop: descárgalo en [uranoai.com/workspace](https://uranoai.com/workspace), instala **cyber-gateway**, conecta tu LLM, crea un agente con el plugin + proveedor/modelo y lánzalo (`TARGET_AGENT` en el Vault). Paso a paso: [README raíz — Arranque](../../README.md#arranque). Timeout típico de un hop LLM: ~20s (tope 35s).
