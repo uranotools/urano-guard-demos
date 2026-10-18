@@ -227,14 +227,14 @@ Registro canónico (el hub **no** hardcodea puertos en Vue): [`packages/shared/l
 | Id | Solo | En el stack | Ingest |
 |---|---|---|---|
 | 00 min contract | `:3000` | **`:3006`** | `POST /chat` |
-| 01 control plane | `:3000` | `:3000` | `POST /api/ingest` |
+| 01 control plane | `:3000` | **`:3001`** | `POST /api/ingest` |
 | 02 NEED + body | `:3002` | `:3002` | `POST /api/ingest` + log de hops `:8791` |
 | 03 payments | `:3003` | `:3003` | `POST /webhooks/payments` (`monitor_only`) |
 | 04 nginx app | `:3004` | `:3004` | `POST /api/ingest` |
 | 05 resilience | `:3005` | `:3005` | `POST /api/ingest` |
 | 06 SOC console | `:3010` | `:3010` | hub + UI |
 
-00 en el stack usa **3006** para no pelear el puerto con 01.
+El stack usa **3006** para 00 y **3001** para 01; deja libre el puerto 3000 para otros servicios. Si una demo falla, `concurrently -k` detiene las demás. Para levantar solo la consola usa `npm run start:06`.
 
 ---
 
@@ -264,3 +264,22 @@ Plantilla y checklist: **[AGENTS.md](AGENTS.md)** (humanos y agentes de código)
 | [demos/06-soc-console/README.md](demos/06-soc-console/README.md) | Solo el hub |
 | [CUSTOM_AGENT.md](https://github.com/uranotools/urano-guard/blob/main/CUSTOM_AGENT.md) | Contrato oficial: tu propio agente |
 | [../urano-guard/AGENTS.md](../urano-guard/AGENTS.md) | Inspectores del SDK |
+
+## Laboratorio del protocolo v1
+
+La consola incluye **Experimentos** (`/experimentos`): ocho casos sintéticos para comprobar streaming, continuidad de sesión, doble entrega idempotente, desconexión/replay, cancelación y usos ajenos a seguridad (entregas de producto, soporte y comparación de datos).
+
+- Requiere un endpoint Urano **protocolo v1** actualizado y el plugin `cyber-gateway` actualizado. Un endpoint schema 1.0 propio sigue funcionando con los labs anteriores; no se le atribuyen capacidades de replay que no anuncia.
+- El modo WS del laboratorio necesita Node 22+ y `experimentalWebSocket: true` en el manifiesto del plugin. Este plugin experimental lo habilita explícitamente; otros plugins permanecen como estaban. El cliente abre una conexión por entrega y la continuidad se hace explícita con `sessionId`.
+- Antes de usar Desktop reinícialo/recompila el core si aún no anuncia `protocolVersion: 1`. El dev-link recarga el plugin, no un core antiguo.
+- Los experimentos usan `AGENT_URL`/token/HMAC de Settings en el servidor. Las credenciales no viajan al navegador por la API nueva. No añaden un proveedor LLM propio: usan el agente del Vault.
+- Una ejecución puede consumir tokens. No se dispara automáticamente al abrir la página. Los casos piden análisis o herramientas de lectura; no despliegues, mensajes a terceros, pagos o bloqueos.
+- La auditoría nueva guarda metadatos en RAM (50 ejecuciones, 500 filas por ejecución). No es un SIEM persistente ni añade login. El resultado del agente aparece separado y acotado; no forma parte del archivo de auditoría exportado.
+
+Guía, ejemplos y límites: [docs/PROTOCOL_LAB.md](docs/PROTOCOL_LAB.md). Verificación sin proveedor: `npm run test:protocol`. La suite incluye el adaptador real del plugin del directorio hermano; se puede sobrescribir su ubicación con `CYBER_GATEWAY_PATH`.
+
+## Banco de evaluaciones y observabilidad
+
+La consola ahora incorpora suites secuenciales, comparación contra una línea base, recorridos guiados por integración, filtros en Live y exportaciones. Comienza en **Overview**, revisa el prevuelo del webhook y abre **Evaluaciones** (`/evaluaciones`). No se envían fixtures hasta pulsar Ejecutar.
+
+Consulta [LAB_WORKBENCH.md](docs/LAB_WORKBENCH.md) para límites, interpretación de HTTP frente a veredictos y configuración por proceso. Pruebas sin LLM: `npm run test:lab`.

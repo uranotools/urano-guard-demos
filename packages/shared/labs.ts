@@ -10,10 +10,10 @@ export interface LabDef {
     self?: boolean;
 }
 
-/** Ports the stack (`npm start`) binds. Solo `start:00` sigue usando 3000 si no pasas PORT. */
+/** Ports the stack (`npm start`) binds. Los comandos individuales 00/01 conservan 3000 si no pasas PORT. */
 export const STACK_PORTS = {
     '00': 3006,
-    '01': 3000,
+    '01': 3001,
     '02': 3002,
     '03': 3003,
     '04': 3004,
@@ -21,7 +21,7 @@ export const STACK_PORTS = {
     hub: 3010
 } as const;
 
-export function listLabs(hubPort = STACK_PORTS.hub): LabDef[] {
+export function listLabs(hubPort: number = STACK_PORTS.hub): LabDef[] {
     return [
         {
             id: 'hub',

@@ -339,3 +339,8 @@ export function startHopForwarder(targetUrl: string, opts?: {
 }
 
 export { listLabs, STACK_PORTS, type LabDef } from './labs';
+
+export { WebhookLabClient, ProtocolError, SseDecoder } from './webhookLabClient';
+export { PROTOCOL_SCENARIOS } from './protocolScenarios';
+
+export { decisionMetadata } from './decisionMetadata';

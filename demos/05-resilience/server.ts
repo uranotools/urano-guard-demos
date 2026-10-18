@@ -2,6 +2,7 @@ import express from 'express';
 import {
     attachSiemAndHealth,
     createDemoGuard,
+    decisionMetadata,
     createDemoState,
     pushLog,
     resolveAgentUrl
@@ -27,7 +28,7 @@ app.use(express.json({
 attachSiemAndHealth(app, state);
 
 app.post('/api/ingest', guard.express(), (req, res) => {
-    res.json({ ok: true, failClosed, stub: agent.usingStub, body: req.body });
+    res.json({ guard: decisionMetadata((req as any).uranoGuard), ok: true, failClosed, stub: agent.usingStub, body: req.body });
 });
 
 app.listen(port, async () => {

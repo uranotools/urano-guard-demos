@@ -2,6 +2,9 @@ import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
 import express from 'express';
+import { ProtocolLab } from './protocolLab';
+import { EvaluationLab } from './evaluationLab';
+import { inspectWebhook } from './diagnostics';
 import {
     SAMPLE_PAYLOADS,
     attachSiemAndHealth,
@@ -15,6 +18,7 @@ import {
     listLabs
 } from '@urano/guard-demo-shared';
 import type { UranoGuard } from '@uranotools/urano-guard';
+import type { LabDef } from '../../packages/shared/labs';
 
 const port = Number(process.env.PORT || 3010);
 process.env.PORT = String(port);
@@ -167,9 +171,9 @@ function publicSnapshot() {
 function kpis() {
     const n = decisionRing.length;
     const blocked = decisionRing.filter((d) => String(d.verdict).toUpperCase() === 'BLOCK' || d.allowed === false).length;
-    const allowed = decisionRing.filter((d) => String(d.verdict).toUpperCase() === 'ALLOW' || d.allowed === true).length;
+    const allowed = decisionRing.filter((d) => String(d.verdict).toUpperCase() === 'ALLOW' || (d.allowed === true && !['MONITOR','ERROR','UNKNOWN','BLOCK','QUARANTINE'].includes(String(d.verdict).toUpperCase()))).length;
     const monitor = decisionRing.filter((d) => String(d.verdict).toUpperCase() === 'MONITOR').length;
-    const scores = decisionRing.map((d) => Number(d.riskScore)).filter((x) => Number.isFinite(x));
+    const scores = decisionRing.map((d) => d.riskScore).filter((x): x is number => typeof x === 'number' && Number.isFinite(x));
     const avgRisk = scores.length ? Math.round(scores.reduce((a, b) => a + b, 0) / scores.length) : 0;
     const hops = decisionRing.filter((d) => d.analysis || d.report).length;
     return { total: n, blocked, allowed, monitor, avgRisk, hops };
@@ -331,25 +335,26 @@ async function postAgent(envelope: any, s: HubSettings): Promise<{ status: numbe
 
 function inferRemoteDecision(labId: string, payloadId: string, result: { status: number; body: any; ms: number }): DecisionPoint {
     const body = result.body || {};
-    const guard = body.guard || {};
+    const guard = body.guard || body.decision || body;
     const honey = typeof body.sessionId === 'string' && (body.sessionId.startsWith('ht_') || String(body.nextStep || '').includes('urano.cloud'))
         || body.status === 'query_success' && body.traceId
         || body.status === 'redirect_scheduled';
-    let verdict = String(guard.action || body.verdict || '').toUpperCase();
+    let verdict = String(guard.action || guard.verdict || body.verdict || '').toUpperCase();
+    if (result.status >= 500 || [401,404,408,429].includes(result.status)) verdict = 'ERROR';
     if (!verdict) {
         if (honey || result.status === 403) verdict = 'BLOCK';
-        else if (result.status >= 500) verdict = 'BLOCK';
-        else verdict = 'ALLOW';
+        else if (result.status >= 500 || result.status === 401 || result.status === 404 || result.status === 429) verdict = 'ERROR';
+        else verdict = 'UNKNOWN';
     }
     if (verdict === 'DENY') verdict = 'BLOCK';
-    const allowed = verdict !== 'BLOCK' && verdict !== 'QUARANTINE';
+    const allowed = ['ERROR','UNKNOWN'].includes(verdict) ? undefined : verdict !== 'BLOCK' && verdict !== 'QUARANTINE';
     const riskScore = Number(guard.riskScore ?? body.riskScore);
     return {
         id: 'dec_lab_' + Date.now() + '_' + labId,
         at: new Date().toISOString(),
         verdict,
         allowed,
-        riskScore: Number.isFinite(riskScore) ? riskScore : (verdict === 'BLOCK' ? 88 : 8),
+        riskScore: Number.isFinite(riskScore) ? riskScore : undefined,
         source: honey ? 'honeypot' : (guard.source || `lab:${labId}`),
         reason: honey
             ? `honeypot HTTP ${result.status} (${payloadId} → ${labId})`
@@ -361,13 +366,14 @@ function inferRemoteDecision(labId: string, payloadId: string, result: { status:
     };
 }
 
-async function fireAtLab(lab: LabDef, body: any) {
+async function fireAtLab(lab: LabDef, body: any, signal?: AbortSignal) {
     const url = `http://127.0.0.1:${lab.port}${lab.ingestPath}`;
     const t0 = Date.now();
     const res = await fetch(url, {
         method: lab.ingestMethod,
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body)
+        body: JSON.stringify(body),
+        signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(45000)]) : AbortSignal.timeout(45000)
     });
     const text = await res.text();
     let parsed: any = {};
@@ -397,6 +403,25 @@ app.use(express.json({
     verify: (req: any, _res, buf) => { req.rawBody = buf.toString('utf8'); }
 }));
 attachSiemAndHealth(app, state);
+const protocolLab = new ProtocolLab(() => ({ url: settings.agentUrl, token: settings.agentToken, hmac: settings.agentHmac, timeoutMs: settings.timeoutMs }));
+protocolLab.mount(app);
+const evaluationLab = new EvaluationLab({ port,
+    context: () => ({ securityMode: settings.securityMode, failPolicy: settings.failPolicy, usingStub, scope: 'hub-config; sibling labs keep their own environment', fixtureVersion: 1 }),
+    fire: async (lab, body, signal) => {
+        const result = await fireAtLab(lab, body, signal);
+        if (!lab.self) pushDecision(inferRemoteDecision(lab.id, 'evaluation', result));
+        return result;
+    }
+});
+evaluationLab.mount(app);
+let diagnosticCache: { expires: number; value: any } | undefined;
+let diagnosticPending: Promise<any> | undefined;
+app.get('/api/diagnostics', async (_req, res) => {
+    if (diagnosticCache && diagnosticCache.expires > Date.now()) { res.json(diagnosticCache.value); return; }
+    if (!diagnosticPending) diagnosticPending = inspectWebhook(settings.agentUrl, usingStub)
+        .then(value => { diagnosticCache = { expires: Date.now()+5000, value }; return value; }).finally(() => { diagnosticPending = undefined; });
+    res.json(await diagnosticPending);
+});
 
 app.get('/events', (req, res) => {
     res.setHeader('Content-Type', 'text/event-stream');
@@ -421,7 +446,7 @@ app.post('/api/ingest', (req, res, next) => {
         res.status(401).json({ error: 'bad api key (rotated by agent skill)' });
         return;
     }
-    pushLog(state, `ingest ${req.ip} ${JSON.stringify(req.body).slice(0, 80)}`);
+    pushLog(state, `ingest ${req.ip} bytes=${Buffer.byteLength(JSON.stringify(req.body || {}))}`);
     res.json({ ok: true, received: req.body, guard: req.uranoGuard ? {
         allowed: req.uranoGuard.allowed,
         action: req.uranoGuard.action,

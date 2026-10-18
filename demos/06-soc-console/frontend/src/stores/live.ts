@@ -51,6 +51,7 @@ export const useLiveStore = defineStore('live', () => {
   function connect() {
     if (es) return
     es = new EventSource('/events')
+    es.onopen = () => { connected.value = true }
     es.addEventListener('hello', (e) => {
       const d = JSON.parse((e as MessageEvent).data)
       usingStub.value = !!d.usingStub
@@ -62,6 +63,7 @@ export const useLiveStore = defineStore('live', () => {
     es.addEventListener('decision', (e) => {
       const d = JSON.parse((e as MessageEvent).data) as DecisionPoint
       if (!decisions.value.some((x) => x.id === d.id)) decisions.value.unshift(d)
+      if (decisions.value.length > 200) decisions.value.length = 200
     })
     es.addEventListener('requestBlocked', (e) => {
       const d = JSON.parse((e as MessageEvent).data)
@@ -74,6 +76,7 @@ export const useLiveStore = defineStore('live', () => {
     es.addEventListener('threatDetected', (e) => {
       const d = JSON.parse((e as MessageEvent).data)
       threatCats.value.unshift({ at: new Date().toISOString(), category: d.category, score: d.score, summary: d.summary })
+      if (threatCats.value.length > 200) threatCats.value.length = 200
       pushLine('threat', `${d.category || 'THREAT'} ${d.summary || ''}`.trim(), 'warn')
     })
     es.addEventListener('agentInvestigationComplete', (e) => {

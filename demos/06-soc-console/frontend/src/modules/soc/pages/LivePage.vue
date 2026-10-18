@@ -1,46 +1,27 @@
 <script setup lang="ts">
-import { onMounted } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useLiveStore } from '@/stores/live'
-
-const live = useLiveStore()
-const { snapshot, timeline, connected, agentUrl, usingStub } = storeToRefs(live)
-
-onMounted(() => live.connect())
+import { downloadJson } from '../labTools'
+const live=useLiveStore(), {timeline,decisions,connected,snapshot}=storeToRefs(live)
+const paused=ref(false), frozen=ref<any[]>([]), query=ref(''), kind=ref('all'), selected=ref<any>(null), labId=ref('all'), verdict=ref('all')
+onMounted(()=>live.connect())
+const events=computed(()=>(paused.value?frozen.value:timeline.value).filter(row=>(kind.value==='all'||row.name===kind.value)&&(!query.value||`${row.name} ${row.text}`.toLowerCase().includes(query.value.toLowerCase()))))
+const filtered=computed(()=>decisions.value.filter(row=>(labId.value==='all'||(row.labId||'hub')===labId.value)&&(verdict.value==='all'||row.verdict===verdict.value)))
+const labIds=computed(()=>[...new Set(decisions.value.map(row=>row.labId||'hub'))])
+function pause(){if(!paused.value)frozen.value=[...timeline.value];paused.value=!paused.value}
+function exportMetadata(){downloadJson('urano-live-metadata.json',{at:new Date().toISOString(),scope:'local RAM snapshot',decisions:filtered.value.map(({id,at,verdict,allowed,riskScore,source,latencyMs,labId})=>({id,at,verdict,allowed,riskScore,source,latencyMs,labId}))})}
 </script>
-
-<template>
-  <div>
-    <p class="page-lead">
-      Stream SSE de este proceso. IPs bloqueadas y honeypot son del ThreatRegistry del hub, no de otro demo.
-    </p>
-    <div class="two-col">
-      <section class="panel">
-        <h2>Timeline</h2>
-        <p class="muted">{{ connected ? 'SSE vivo' : 'SSE caído' }} · {{ usingStub ? 'stub' : agentUrl }}</p>
-        <div class="timeline">
-          <div v-for="(row, i) in timeline" :key="i" class="timeline__row" :class="row.cls">
-            {{ new Date(row.at).toLocaleTimeString() }} {{ row.text }}
-          </div>
-          <p v-if="!timeline.length" class="muted">Esperando eventos…</p>
-        </div>
-      </section>
-      <section class="panel">
-        <h2>Estado del servidor</h2>
-        <div class="kv" style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--line)">
-          <span>API key</span><strong>…{{ snapshot.apiKeySuffix }}</strong>
-        </div>
-        <div class="kv" style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--line)">
-          <span>Honeypot</span><strong>{{ snapshot.honeypotArmed ? 'armado' : 'off' }}</strong>
-        </div>
-        <div class="kv" style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--line)">
-          <span>IPs bloqueadas</span><strong>{{ (snapshot.blocked || []).join(', ') || '—' }}</strong>
-        </div>
-        <h3>Logs</h3>
-        <pre class="timeline">{{ (snapshot.logs || []).join('\n') || '—' }}</pre>
-        <h3>SIEM (audit sink local)</h3>
-        <pre class="timeline">{{ JSON.stringify(snapshot.siemEvents || [], null, 2) }}</pre>
-      </section>
-    </div>
-  </div>
-</template>
+<template><div class="workbench">
+  <header class="lab-hero"><div><span class="eyebrow">OBSERVABILIDAD / SESIÓN LOCAL</span><h2>Del evento a la evidencia.</h2><p>Investiga decisiones y actividad del hub. Los eventos proxy indican cuándo la petición fue enviada a otro lab.</p></div><span class="badge" :class="connected?'':'badge--warn'">{{ connected?'SSE conectado':'Reconectando SSE' }}</span></header>
+  <div class="metric-strip panel"><div><small>Decisiones en ventana</small><strong>{{ decisions.length }}</strong></div><div><small>Honeypot del hub</small><strong>{{ snapshot.honeypotArmed?'Armado':'Inactivo' }}</strong></div><div><small>IPs bloqueadas del hub</small><strong>{{ snapshot.blocked?.length||0 }}</strong></div><div><small>Modo del hub</small><strong>{{ snapshot.securityMode||'—' }}</strong></div></div>
+  <div class="two-col"><section class="panel"><div class="section-head"><h3>Flujo de actividad</h3><button class="btn btn--ghost" @click="pause">{{ paused?'Reanudar vista':'Pausar vista' }}</button></div>
+    <div class="filter-bar"><input v-model="query" class="field__input" aria-label="Buscar en actividad" placeholder="Buscar actividad…" /><select v-model="kind" class="field__input" aria-label="Tipo de evento"><option value="all">Todos los eventos</option><option value="allow">Allow</option><option value="block">Block</option><option value="threat">Amenaza</option><option value="async">Investigación</option><option value="attack">Disparo</option><option value="skill">Skill</option></select></div>
+    <p class="fine-print">{{ paused?'Vista congelada; la recepción continúa.':'Ventana de hasta 200 eventos recibidos por este navegador.' }}</p><div class="timeline activity-feed"><div v-for="(row,i) in events" :key="row.at+i" class="activity-row"><time>{{ new Date(row.at).toLocaleTimeString() }}</time><span class="badge" :class="row.cls==='bad'?'badge--danger':''">{{ row.name }}</span><span>{{ row.text }}</span></div><p v-if="!events.length" class="empty-state">Sin actividad que coincida con los filtros.</p></div>
+  </section><section class="panel"><div class="section-head"><h3>Decisiones observadas</h3><button class="btn btn--ghost" @click="exportMetadata">Exportar metadatos</button></div>
+    <div class="filter-bar"><select v-model="labId" class="field__input" aria-label="Filtrar lab"><option value="all">Todos los labs</option><option v-for="id in labIds" :key="id">{{ id }}</option></select><select v-model="verdict" class="field__input" aria-label="Filtrar veredicto"><option value="all">Todos los veredictos</option><option>ALLOW</option><option>BLOCK</option><option>MONITOR</option><option>UNKNOWN</option><option>ERROR</option></select></div>
+    <div class="decision-list"><button v-for="row in filtered" :key="row.id" class="decision-item" @click="selected=row"><span class="badge" :class="row.allowed===false?'badge--danger':''">{{ row.verdict }}</span><span><strong>{{ row.labId||'hub' }}</strong><small>{{ row.source||'origen sin datos' }} · {{ new Date(row.at).toLocaleTimeString() }}</small></span><span>{{ row.riskScore ?? '—' }}<small>riesgo</small></span></button><p v-if="!filtered.length" class="empty-state">Las decisiones aparecerán al enviar fixtures.</p></div>
+  </section></div>
+  <details class="panel evidence"><summary>Estado local del hub y audit sink</summary><p class="muted">API key · sufijo …{{ snapshot.apiKeySuffix || '—' }} · IPs bloqueadas: {{ (snapshot.blocked || []).join(', ') || 'ninguna' }}</p><h3>Logs operativos recientes</h3><pre class="result-copy mono">{{ (snapshot.logs || []).join('\n') || 'Sin logs recientes.' }}</pre><h3>Audit sink local · metadatos</h3><div v-for="(entry,i) in snapshot.siemEvents || []" :key="i" class="comparison-row"><span>{{ entry.at ? new Date(entry.at).toLocaleTimeString() : '—' }}</span><span>{{ entry.event?.type || entry.event?.name || 'evento recibido' }}</span></div><p class="fine-print">Este sink es local al hub. La vista omite cuerpos y detalles de los eventos recibidos; no es un SIEM externo.</p></details>
+  <section v-if="selected" class="panel"><div class="section-head"><h3>Inspección de decisión</h3><button class="btn btn--ghost" @click="selected=null">Cerrar</button></div><p class="mono muted">{{ selected.id }}</p><p>{{ selected.reason||'Sin motivo disponible.' }}</p><pre class="result-copy">{{ selected.analysis||'Sin análisis adjunto. La ausencia de análisis no demuestra un error del agente.' }}</pre><p class="fine-print">La exportación de esta página solo incluye metadatos; omite motivos, análisis, reportes y cuerpos.</p></section>
+</div></template>

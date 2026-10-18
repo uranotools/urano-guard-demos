@@ -3,6 +3,7 @@ import {
     SAMPLE_PAYLOADS,
     attachSiemAndHealth,
     createDemoGuard,
+    decisionMetadata,
     createDemoState,
     publicState,
     pushLog,
@@ -75,8 +76,8 @@ app.post('/api/ingest', guard.express(), (req, res) => {
         res.status(401).json({ error: 'bad api key (rotated by agent skill)' });
         return;
     }
-    pushLog(state, `ingest ${req.ip} ${JSON.stringify(req.body).slice(0, 80)}`);
-    res.json({ ok: true, received: req.body, server: publicState(state) });
+    pushLog(state, `ingest ${req.ip} bytes=${Buffer.byteLength(JSON.stringify(req.body || {}))}`);
+    res.json({ guard: decisionMetadata((req as any).uranoGuard), ok: true, received: req.body, server: publicState(state) });
 });
 
 app.get('/payloads', (_req, res) => res.json(SAMPLE_PAYLOADS));

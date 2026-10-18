@@ -15,7 +15,7 @@
   ],
   "scripts": {
     "start": "npm run start:stack",
-    "start:stack": "npm run build -w @urano/demo-06-soc-console && concurrently -k -n 00,01,02,03,04,05,06 \"cross-env PORT=3006 npm run start -w @urano/demo-00-min-contract\" \"npm run start:01\" \"npm run start:02\" \"npm run start:03\" \"npm run start:04\" \"npm run start:05\" \"npm run start:api -w @urano/demo-06-soc-console\"",
+    "start:stack": "npm run build -w @urano/demo-06-soc-console && concurrently -k -n 00,01,02,03,04,05,06 \"cross-env PORT=3006 npm run start -w @urano/demo-00-min-contract\" \"cross-env PORT=3001 npm run start:01\" \"npm run start:02\" \"npm run start:03\" \"npm run start:04\" \"npm run start:05\" \"npm run start:api -w @urano/demo-06-soc-console\"",
     "start:00": "npm run start -w @urano/demo-00-min-contract",
     "start:01": "npm run start -w @urano/demo-01-control-plane",
     "start:02": "npm run start -w @urano/demo-02-need-body",
@@ -23,6 +23,8 @@
     "start:04": "npm run start -w @urano/demo-04-nginx",
     "start:05": "npm run start -w @urano/demo-05-resilience",
     "start:06": "npm run start -w @urano/demo-06-soc-console",
+    "test:protocol": "tsx --test tests/protocol.test.ts",
+    "test:lab": "tsx --test tests/evaluation.test.ts",
     "dev:06": "npm run dev -w @urano/demo-06-soc-console"
   },
   "devDependencies": {

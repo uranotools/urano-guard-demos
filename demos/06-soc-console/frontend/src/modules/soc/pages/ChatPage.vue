@@ -8,6 +8,11 @@ const attachLogs = ref(true)
 const busy = ref(false)
 const thread = ref<Array<{ role: 'user' | 'agent'; text: string; analysis?: string; report?: any; verdict?: string }>>([])
 const last = ref<any>(null)
+const prompts = [
+  {title:'Triage del laboratorio',text:'Analiza únicamente los eventos sintéticos adjuntos. Separa hechos de hipótesis, identifica datos faltantes y propone tres pasos de verificación. No ejecutes acciones ni cambies configuración.'},
+  {title:'Revisar falsos positivos',text:'Revisa las decisiones sintéticas adjuntas e identifica candidatos a falso positivo. Explica qué evidencia necesitarías para confirmarlo. No desbloquees IPs ni modifiques políticas.'},
+  {title:'Plan de resiliencia',text:'Propón un plan de pruebas para comparar fail-open y fail-closed con datos sintéticos, incluyendo errores, timeouts y criterios de aceptación. Solo análisis; no cambies el sistema.'},
+]
 
 onMounted(() => {})
 
@@ -60,6 +65,8 @@ async function saveLast() {
 
 <template>
   <div class="chat">
+    <header class="lab-hero"><div><span class="eyebrow">ANALISTA / INVESTIGACIÓN ASISTIDA</span><h2>Mejores preguntas. Hallazgos claros.</h2><p>Prepara una hipótesis, aporta contexto y guarda el análisis para revisarlo después.</p></div></header>
+    <div class="prompt-grid"><button v-for="prompt in prompts" :key="prompt.title" class="btn btn--ghost" :disabled="busy" @click="message=prompt.text">{{ prompt.title }} ↗</button></div>
     <p class="page-lead">
       No pasa por el WAF (el analista no se bloquea a sí mismo). El JSON va al webhook de Desktop
       con logs/SIEM/decisiones adjuntos. El modelo y la API key son los del agente en Vault.

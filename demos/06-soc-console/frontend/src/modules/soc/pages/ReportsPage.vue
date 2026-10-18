@@ -1,38 +1,16 @@
 <script setup lang="ts">
-import { ref } from 'vue'
-import ListData from '@core/components/multipurpose/ListData.vue'
-
-const selected = ref<any>(null)
-const table = ref<{ reload: () => void } | null>(null)
-
-const columns = [
-  { Header: 'Cuando', accessor: 'at' },
-  { Header: 'Título', accessor: 'title' },
-  { Header: 'Severidad', accessor: 'severity' },
-  { Header: 'Origen', accessor: 'source' },
-  { Header: 'Veredicto', accessor: 'verdict' },
-]
+import {computed,onMounted,ref} from 'vue'
+import {apiService} from '@core'
+import {downloadJson} from '../labTools'
+const reports=ref<any[]>([]),selected=ref<any>(null),query=ref(''),severity=ref('all'),source=ref('all'),error=ref(''),busy=ref(false)
+const sources=computed(()=>[...new Set(reports.value.map(x=>x.source))]),severities=computed(()=>[...new Set(reports.value.map(x=>x.severity).filter(Boolean))])
+const filtered=computed(()=>reports.value.filter(x=>(severity.value==='all'||x.severity===severity.value)&&(source.value==='all'||x.source===source.value)&&`${x.title} ${x.analysis||''} ${x.verdict||''}`.toLowerCase().includes(query.value.toLowerCase())))
+async function load(){busy.value=true;try{reports.value=(await apiService.request({url:'/api/reports'})).data||[];error.value=''}catch{error.value='No se pudieron cargar los reportes.'}finally{busy.value=false}}
+onMounted(load)
 </script>
-
-<template>
-  <div>
-    <p class="page-lead">
-      Reportes persistidos en <code>data/reports.json</code>. Se llenan al guardar desde el chat o cuando un hop trae <code>agentReport</code>.
-    </p>
-    <ListData
-      ref="table"
-      :table-config="{ title: 'Reportes de IA', apiEndpoint: '/api/reports', dataField: 'data' }"
-      :columns="columns"
-      @row-click="selected = $event"
-    />
-    <section v-if="selected" class="panel" style="margin-top:1rem">
-      <h2>{{ selected.title }}</h2>
-      <p class="muted">{{ selected.at }} · {{ selected.source }} · {{ selected.severity || '—' }}</p>
-      <p v-if="selected.question"><strong>Pregunta:</strong> {{ selected.question }}</p>
-      <h3>Analysis</h3>
-      <pre class="timeline">{{ selected.analysis || '—' }}</pre>
-      <h3>Report</h3>
-      <pre class="timeline">{{ JSON.stringify(selected.report || {}, null, 2) }}</pre>
-    </section>
-  </div>
-</template>
+<template><div class="workbench"><header class="lab-hero"><div><span class="eyebrow">CUADERNO / HALLAZGOS GUARDADOS</span><h2>Del análisis al seguimiento.</h2><p>Revisa los reportes del agente y conserva una copia de los hallazgos que quieras estudiar.</p></div><button class="btn btn--ghost" :disabled="busy" @click="load">Actualizar</button></header>
+  <div v-if="error" class="banner banner--error" role="alert">{{ error }}</div><div class="filter-bar"><input v-model="query" class="field__input" aria-label="Buscar reportes" placeholder="Buscar título, análisis o veredicto…" /><select v-model="severity" class="field__input" aria-label="Filtrar severidad"><option value="all">Toda severidad</option><option v-for="item in severities" :key="item">{{ item }}</option></select><select v-model="source" class="field__input" aria-label="Filtrar origen"><option value="all">Todo origen</option><option v-for="item in sources" :key="item">{{ item }}</option></select></div>
+  <p class="fine-print">{{ filtered.length }} / {{ reports.length }} reportes locales · guardados en data/reports.json · Las evaluaciones tienen su propio export de metadatos.</p>
+  <div class="two-col"><section class="panel report-index"><button v-for="row in filtered" :key="row.id" class="report-item" :class="{'is-selected':selected?.id===row.id}" @click="selected=row"><span class="eyebrow">{{ row.source }} / {{ row.severity||'SIN SEVERIDAD' }}</span><strong>{{ row.title }}</strong><small>{{ new Date(row.at).toLocaleString() }} · {{ row.verdict||'sin veredicto' }}</small></button><div v-if="!filtered.length" class="empty-state"><h3>Sin hallazgos para mostrar.</h3><p>Guarda una respuesta desde SOC chat o ejecuta una petición que genere un reporte.</p><RouterLink class="btn btn--ghost" to="/chat">Abrir analista →</RouterLink></div></section>
+    <section v-if="selected" class="panel"><div class="section-head"><span class="badge">{{ selected.verdict||'ANÁLISIS' }}</span><button class="btn btn--ghost" @click="downloadJson('urano-report-'+selected.id+'.json',selected)">Exportar reporte completo</button></div><h2 class="report-title">{{ selected.title }}</h2><p class="muted">{{ new Date(selected.at).toLocaleString() }} · {{ selected.source }}</p><p v-if="selected.question" class="callout">{{ selected.question }}</p><h3>Análisis</h3><pre class="result-copy">{{ selected.analysis||'Sin análisis adjunto.' }}</pre><details class="evidence"><summary>Reporte estructurado</summary><pre class="result-copy">{{ JSON.stringify(selected.report||{},null,2) }}</pre></details><p class="fine-print">Este export incluye el contenido completo del reporte y análisis. Usa datos sintéticos al compartirlo.</p></section><section v-else class="panel empty-state">Selecciona un reporte para inspeccionar su evidencia.</section></div>
+</div></template>

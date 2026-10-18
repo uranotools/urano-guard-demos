@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import LabReadiness from '../components/LabReadiness.vue'
 import { onMounted, reactive, ref } from 'vue'
 import { apiService, useToast } from '@core'
 import { useLiveStore } from '@/stores/live'
@@ -110,6 +111,7 @@ function useStub() {
       </div>
     </section>
     <section class="panel">
+      <LabReadiness />
       <h2>Último ping</h2>
       <pre class="timeline">{{ ping ? JSON.stringify(ping, null, 2) : 'NEED sin body (~25ms) si Desktop está up.' }}</pre>
     </section>

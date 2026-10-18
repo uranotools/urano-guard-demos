@@ -2,6 +2,7 @@ import express from 'express';
 import {
     attachSiemAndHealth,
     createDemoGuard,
+    decisionMetadata,
     createDemoState,
     pushLog,
     resolveAgentUrl
@@ -37,7 +38,7 @@ app.post('/webhooks/payments', guard.express(), (req, res) => {
         status: 'received'
     });
     pushLog(state, `payment ${evt.type || 'event'} accepted (monitor_only)`);
-    res.json({ received: true, type: evt.type || 'unknown', ledgerSize: ledger.length });
+    res.json({ guard: decisionMetadata((req as any).uranoGuard), received: true, type: evt.type || 'unknown', ledgerSize: ledger.length });
 });
 
 app.get('/ledger', (_req, res) => res.json(ledger.slice(0, 20)));

@@ -64,7 +64,7 @@ Takes minutes if you copy 00. **Do not invent a new inspector** here; that belon
 
 Ingest contract: JSON POST. The hub forwards `/api/payloads` bodies. Another shape is fine (see 03 payments) as long as it is POST JSON.
 
-Port clash: 00 and 01 both default to 3000. Stack forces 00 to **3006** (`cross-env PORT=3006`). Pick a free port for 07+.
+Port clash: 00 and 01 both default to 3000. Stack forces 00 to **3006** (`cross-env PORT=3006`) and 01 to **3001** (`cross-env PORT=3001`), leaving 3000 for other services. Pick a free port for 07+.
 
 ### Minimal `server.ts`
 

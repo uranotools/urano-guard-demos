@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import LabReadiness from '../components/LabReadiness.vue'
+import { percentile } from '../labTools'
 import { computed, onMounted } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useLiveStore } from '@/stores/live'
@@ -8,6 +10,8 @@ const live = useLiveStore()
 const { kpis, decisions, threatCats, snapshot, usingStub, agentUrl, connected } = storeToRefs(live)
 
 onMounted(() => live.connect())
+const latency = computed(() => ({ p50: percentile(decisions.value.map(d => d.latencyMs).filter((x): x is number => typeof x === 'number'), .5), p95: percentile(decisions.value.map(d => d.latencyMs).filter((x): x is number => typeof x === 'number'), .95) }))
+const uncertain = computed(() => decisions.value.filter(d => ['ERROR','UNKNOWN'].includes(d.verdict)).length)
 
 const verdictSeries = computed(() => {
   const buckets: Record<string, { ALLOW: number; BLOCK: number; MONITOR: number }> = {}
@@ -18,7 +22,7 @@ const verdictSeries = computed(() => {
     const v = String(d.verdict || '').toUpperCase()
     if (v === 'BLOCK' || d.allowed === false) buckets[key].BLOCK++
     else if (v === 'MONITOR') buckets[key].MONITOR++
-    else buckets[key].ALLOW++
+    else if (v === 'ALLOW' || d.allowed === true) buckets[key].ALLOW++
   }
   const labels = Object.keys(buckets).slice(-12)
   return {
@@ -36,8 +40,8 @@ const riskHist = computed(() => {
   const labels = ['0–19', '20–39', '40–59', '60–79', '80–100']
   for (const d of decisions.value) {
     const s = Number(d.riskScore)
-    if (!Number.isFinite(s)) continue
-    bins[Math.min(4, Math.floor(s / 20))]++
+    if (d.riskScore == null || !Number.isFinite(s)) continue
+    bins[Math.max(0, Math.min(4, Math.floor(s / 20)))]++
   }
   return {
     labels,
@@ -66,6 +70,9 @@ const catChart = computed(() => {
 
 <template>
   <div>
+    <header class="lab-hero"><div><span class="eyebrow">URANO GUARD / ESTACIÓN DE PRUEBAS</span><h2>Entender antes de confiar.</h2><p>Observa las decisiones, verifica los contratos y convierte cada cambio en una comparación reproducible.</p></div><RouterLink class="btn btn--primary" to="/evaluaciones">Ejecutar evaluación →</RouterLink></header>
+    <LabReadiness />
+    <nav class="journey-grid" aria-label="Recorrido del laboratorio"><RouterLink to="/labs"><span class="eyebrow">01 / EXPLORAR</span><strong>Elige una integración ↗</strong><small>Contratos, health y recorridos guiados.</small></RouterLink><RouterLink to="/evaluaciones"><span class="eyebrow">02 / MEDIR</span><strong>Crea una línea base ↗</strong><small>Suites, expectativas y diferencias.</small></RouterLink><RouterLink to="/live"><span class="eyebrow">03 / INVESTIGAR</span><strong>Inspecciona la evidencia ↗</strong><small>Eventos y decisiones observadas.</small></RouterLink></nav>
     <p class="page-lead">
       Consola de demo: gráficas del ring de esta sesión (se vacía al reiniciar).
       Jailbreak en <strong>este proceso</strong> entra por el Guard local.
@@ -94,6 +101,7 @@ const catChart = computed(() => {
         <ChartPanel type="bar" :labels="riskHist.labels" :datasets="riskHist.datasets" />
       </section>
     </div>
+    <section class="panel" style="margin-bottom:1.25rem"><div class="section-head"><h3>Calidad de la observación</h3><RouterLink to="/live" class="btn btn--ghost">Inspeccionar decisiones</RouterLink></div><div class="metric-strip"><div><small>P50 de latencia proxy</small><strong>{{ latency.p50 ?? '—' }} ms</strong></div><div><small>P95 de latencia proxy</small><strong>{{ latency.p95 ?? '—' }} ms</strong></div><div><small>Error o sin evidencia</small><strong class="warn">{{ uncertain }}</strong></div></div><p class="fine-print">Latencias de las peticiones proxy que incluyen duración; no representan todos los turnos del agente. ERROR y UNKNOWN no se suman a ALLOW ni BLOCK. La ventana contiene hasta 80 decisiones, mientras los KPI del servidor pueden cubrir hasta 200.</p></section>
     <section class="panel">
       <h2>Categorías threatDetected</h2>
       <ChartPanel type="doughnut" :labels="catChart.labels" :datasets="catChart.datasets" />
